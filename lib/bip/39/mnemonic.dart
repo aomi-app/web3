@@ -3,6 +3,7 @@ library bip39;
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:core';
+import 'dart:math';
 import 'package:hex/hex.dart';
 import 'package:pointycastle/pointycastle.dart';
 
@@ -13,15 +14,17 @@ import './wordlists/wordlist.dart';
 /// 助记词转换为熵
 Uint8List mnemonicToEntropy(String mnemonic, [Wordlist? wl]) {
   final wordlist = wl ?? LangEn.wordlist;
-  final List<String> words = mnemonic.split(' ');
-  if (words.length % 3 != 0) {
+
+  final List<String> words = wordlist.split(mnemonic);
+
+  if (!((words.length % 3) == 0 && words.length >= 12 && words.length <= 24)) {
     throw ArgumentError('Invalid mnemonic');
   }
 
-  final entropyLength = (11 * words.length ~/ 8);
+  final entropyLength = (11 * words.length / 8).ceil();
   final entropy = Uint8List(entropyLength);
-  var offset = 0;
 
+  var offset = 0;
   for (var i = 0; i < words.length; i++) {
     /// TODO words[i].normalize(NormalizationForm.nfkd) 未实现
     final index = wordlist.getWordIndex(words[i]);
@@ -37,12 +40,13 @@ Uint8List mnemonicToEntropy(String mnemonic, [Wordlist? wl]) {
     }
   }
 
-  final entropyBits = 32 * words.length ~/ 3;
-  final checksumBits = words.length ~/ 3;
-  final checksumMask = (1 << checksumBits) - 1;
+  final entropyBits = 32 * words.length / 3;
 
-  final entropyBytes = Uint8List.view(entropy.buffer, 0, entropyBits ~/ 8);
-  final checksum = sha256(entropyBytes)[0] & checksumMask;
+  final checksumBits = words.length / 3;
+  final checksumMask = getUpperMask(checksumBits.toInt());
+
+
+  final checksum = sha256(entropy.sublist(0, entropyBits ~/ 8))[0] & checksumMask;
 
   if (checksum != (entropy[entropy.length - 1] & checksumMask)) {
     throw ArgumentError('Invalid checksum');
@@ -52,10 +56,11 @@ Uint8List mnemonicToEntropy(String mnemonic, [Wordlist? wl]) {
 }
 
 /// 熵转换为助记词
-String entropyToMnemonic(Uint8List entropy, Wordlist wordlist) {
+String entropyToMnemonic(Uint8List entropy, [Wordlist? wl]) {
   if (entropy.length % 4 != 0 || entropy.length < 16 || entropy.length > 32) {
     throw ArgumentError('invalid entropy');
   }
+  final wordlist  = wl ?? LangEn.wordlist;
 
   final indices = <int>[0];
   int remainingBits = 11;
@@ -79,17 +84,20 @@ String entropyToMnemonic(Uint8List entropy, Wordlist wordlist) {
   indices[indices.length - 1] <<= checksumBits;
   indices[indices.length - 1] |= checksum >> (8 - checksumBits);
 
-  return indices.map((index) => wordlist!.getWord(index)).join(' ');
+  return wordlist.join(indices.map((index) => wordlist.getWord(index)).toList());
 }
 
 // Returns a byte with the LSB bits set
 int getLowerMask(int bits) {
-  return (1 << bits) - 1;
+  // return (1 << bits) - 1;
+  return ((1 << bits) - 1) & 0xff;
 }
 
 // Returns a byte with the MSB bits set
 int getUpperMask(int bits) {
-  return ((1 << bits) - 1) << (8 - bits);
+  // return ((1 << bits) - 1) << (8 - bits);
+  return ((1 << bits) - 1) << (8 - bits) & 0xff;
+
 }
 
 class Mnemonic {

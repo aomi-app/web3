@@ -8,8 +8,12 @@ void main() {
     var entropy = randomBytes(16);
 
     var mnemonic = Mnemonic.fromEntropy(entropy);
-    // var mnemonic = Mnemonic.fromPhrase("analyst stool fox supply jelly memory spread win mother replace nice miss fashion upper vacuum plastic inherit flight argue risk hill miss clog shuffle");
+    var mnemonic1 = Mnemonic.fromPhrase("work breeze deal guitar order width jaguar appear day chalk matter double");
+
+    var seed = mnemonic.computeSeed();
+    var seed1 = mnemonic1.computeSeed();
     print(mnemonic.phrase);
+    print(mnemonic1.phrase);
     // final seed = mnemonicToSeed(mnemonic);
     // print(HEX.encode(seed));
   });
